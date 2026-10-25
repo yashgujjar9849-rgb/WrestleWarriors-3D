@@ -1,0 +1,188 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WrestleWarriors 3D</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#080d18;color:white;font-family:Arial;text-align:center;overflow:hidden}
+h2{margin:10px;color:#00d9ff;font-size:22px}
+#game{width:100%;height:65vh;display:block}
+.hud{position:absolute;top:52px;left:0;width:100%;display:flex;justify-content:space-around;pointer-events:none}
+.health{background:#222;border:1px solid white;width:40%;height:18px;border-radius:10px;overflow:hidden}
+.fill{height:100%;width:100%;background:#21e36a}
+#msg{font-size:14px;color:#ffd44a;margin:4px}
+.controls{position:absolute;bottom:12px;width:100%;display:flex;justify-content:space-around;align-items:center}
+.group{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:48%}
+button{background:#12385c;color:white;border:2px solid #00d9ff;border-radius:12px;padding:15px 13px;font-size:15px;font-weight:bold;touch-action:none}
+button:active{background:#e52d52}
+#restart{padding:8px 14px}
+</style>
+</head>
+<body>
+<h2>WRESTLEWARRIORS 3D</h2>
+<div class="hud">
+  <div class="health"><div id="h1" class="fill"></div></div>
+  <div class="health"><div id="h2" class="fill"></div></div>
+</div>
+<div id="game"></div>
+<div id="msg">PLAYER 1 vs PLAYER 2</div>
+<div class="controls">
+  <div class="group">
+    <button id="left">◀</button>
+    <button id="right">▶</button>
+  </div>
+  <div class="group">
+    <button id="punch">👊 PUNCH</button>
+    <button id="kick">🦵 KICK</button>
+  </div>
+</div>
+<script type="module">
+import * as THREE from
+'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+
+const host=document.getElementById('game');
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x10182b);
+scene.fog=new THREE.Fog(0x10182b,20,38);
+
+const camera=new THREE.PerspectiveCamera(50,1,0.1,100);
+camera.position.set(0,8,14);
+camera.lookAt(0,1,0);
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));
+renderer.shadowMap.enabled=true;
+host.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x39445f,2));
+const light=new THREE.DirectionalLight(0xffffff,3);
+light.position.set(4,10,6);
+scene.add(light);
+
+function box(w,h,d,color,x,y,z,parent=scene){
+ const m=new THREE.Mesh(
+  new THREE.BoxGeometry(w,h,d),
+  new THREE.MeshStandardMaterial({color,roughness:0.65})
+ );
+ m.position.set(x,y,z);
+ m.castShadow=true;
+ parent.add(m);
+ return m;
+}
+
+// Arena
+box(30,.3,24,0x171d2a,0,-.4,0);
+box(9,.3,9,0x263b61,0,-.1,0);
+
+// Ring ropes and posts
+for(const x of [-4.5,4.5]){
+ for(const z of [-4.5,4.5]) box(.22,2,.22,0xe7e7f2,x,.8,z);
+}
+for(const y of [.35,.9,1.45]){
+ for(const z of [-4.5,4.5]) box(9,.07,.07,0xff294d,0,y,z);
+ for(const x of [-4.5,4.5]) box(.07,.07,9,0xff294d,x,y,0);
+}
+
+// Audience lights
+for(let i=0;i<18;i++){
+ box(.35,.35,.35,
+  i%2?0x00cfff:0xffb52e,
+  -9+i,1.2,-6.2);
+}
+
+function fighter(color,x){
+ const g=new THREE.Group();
+ g.position.set(x,0,0);
+ scene.add(g);
+ box(.8,.95,.45,color,0,1.45,0,g);
+ box(.65,.65,.65,0xf0bd91,0,2.25,0,g);
+ box(.68,.18,.7,0x161616,0,2.38,0,g);
+ box(.25,.8,.28,color,-.55,1.45,0,g);
+ box(.25,.8,.28,color,.55,1.45,0,g);
+ box(.3,.8,.32,0x242424,-.23,.55,0,g);
+ box(.3,.8,.32,0x242424,.23,.55,0,g);
+ return g;
+}
+const p1=fighter(0x087bff,-2);
+const p2=fighter(0xff273e,2);
+p1.rotation.y=0;
+p2.rotation.y=Math.PI;
+
+let health1=100,health2=100;
+let busy=false;
+
+function updateHealth(){
+ document.getElementById('h1').style.width=health1+'%';
+ document.getElementById('h2').style.width=health2+'%';
+ if(health1<=0||health2<=0){
+  document.getElementById('msg').textContent=
+   health1<=0?'RED FIGHTER WINS!':'BLUE FIGHTER WINS!';
+ }else{
+  document.getElementById('msg').textContent=
+   'BLUE '+health1+' HP  |  RED '+health2+' HP';
+ }
+}
+
+function move(dx){
+ if(health1<=0||health2<=0)return;
+ p1.position.x=Math.max(-3.8,Math.min(3.8,p1.position.x+dx));
+ p1.position.z=Math.max(-3.5,Math.min(3.5,p1.position.z));
+ p1.rotation.y=Math.atan2(
+  p2.position.x-p1.position.x,
+  p2.position.z-p1.position.z
+ );
+}
+
+function attack(damage){
+ if(busy||health1<=0||health2<=0)return;
+ busy=true;
+ const old=p1.position.x;
+ const direction=p2.position.x>=p1.position.x?1:-1;
+ p1.position.x+=direction*.45;
+ if(Math.abs(p1.position.x-p2.position.x)<2.4){
+  health2=Math.max(0,health2-damage);
+ }
+ updateHealth();
+ setTimeout(()=>{
+  p1.position.x=old;
+  busy=false;
+ },180);
+}
+
+function bind(id,fn){
+ const b=document.getElementById(id);
+ b.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  fn();
+ });
+}
+bind('left',()=>move(-.35));
+bind('right',()=>move(.35));
+bind('punch',()=>attack(8));
+bind('kick',()=>attack(14));
+
+function resize(){
+ const w=host.clientWidth,h=host.clientHeight;
+ camera.aspect=w/h;
+ camera.updateProjectionMatrix();
+ renderer.setSize(w,h);
+}
+window.addEventListener('resize',resize);
+resize();
+
+function animate(){
+ requestAnimationFrame(animate);
+ p2.rotation.y=Math.atan2(
+  p1.position.x-p2.position.x,
+  p1.position.z-p2.position.z
+ );
+ renderer.render(scene,camera);
+}
+animate();
+updateHealth();
+</script>
+</body>
+</html>
